@@ -2,12 +2,13 @@ name: Create Release on Merge
 
 on:
   push:
-    branches: [ "main" ]
+    branches: 
+      - main
+      # Если ваша основная ветка называется master, замените main на master
 
 jobs:
   release:
-    # Запуск только если push произошел из-за успешного слияния Pull Request
-    if: github.event.commits[0] != null && contains(github.event.head_commit.message, 'Merge pull request')
+    # Запускаем только если это обычный пуш в main (не PR)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,13 +24,11 @@ jobs:
 
     - name: Build Binary
       run: |
-        # Сборка финального бинарника
         gcc -o my_program main.c
 
     - name: Generate Release Tag
       id: tag
       run: |
-        # Автоматический тег на основе даты и времени (например, v2026.10.20-1738)
         TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
         echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
@@ -39,10 +38,8 @@ jobs:
         tag_name: ${{ steps.tag.outputs.tag_name }}
         name: Release ${{ steps.tag.outputs.tag_name }}
         body: |
-          Автоматический релиз успешно создана после слияния Pull Request.
+          Автоматический релиз успешно создан при обновлении ветки main.
         draft: false
         prerelease: false
-        # Путь к файлам, которые нужно прикрепить к релизу
         files: |
           my_program
-
