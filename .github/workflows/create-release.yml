@@ -1,4 +1,4 @@
-name: Create Release on Merge
+name: Create Release on Pull Request Merge
 
 on:
   push:
@@ -11,41 +11,44 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # Настраиваем конфигурационную матрицу для 4-х платформ
         include:
           - target: linux-x64
-            compiler: gcc
+            compiler: g++
             flags: "-m64"
-            output_name: my_program_linux_x64
+            output_name: team-game-arcade.linux-x64.elf
           - target: linux-x86
-            compiler: gcc
+            compiler: g++
             flags: "-m32"
-            output_name: my_program_linux_x86
+            output_name: team-game-arcade.linux-x86.elf
           - target: windows-x64
-            compiler: x86_64-w64-mingw32-gcc
-            flags: ""
-            output_name: my_program_windows_x64.exe
+            compiler: x86_64-w64-mingw32-g++
+            flags: "-static -static-libgcc -static-libstdc++"
+            output_name: team-game-arcade.windows-x64.exe
           - target: windows-x86
-            compiler: i686-w64-mingw32-gcc
-            flags: ""
-            output_name: my_program_windows_x86.exe
+            compiler: i686-w64-mingw32-g++
+            flags: "-static -static-libgcc -static-libstdc++"
+            output_name: team-game-arcade.windows-x86.exe
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Cache APT Packages
+      uses: actions/cache@v4
+      id: apt-cache
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-${{ matrix.target }}
+
     - name: Install Compilers and Dependencies
       run: |
         sudo apt-get update
-        # gcc-multilib нужен для сборки 32-битного Linux на 64-битной Ubuntu
-        # mingw-w64 нужен для кросс-компиляции под Windows
-        sudo apt-get install -y build-essential gcc-multilib mingw-w64
+        sudo apt-get install -y build-essential g++-multilib mingw-w64
 
     - name: Build Binary
       run: |
-        ${{ matrix.compiler }} ${{ matrix.flags }} -o ${{ matrix.output_name }} main.c
+        ${{ matrix.compiler }} ${{ matrix.flags }} -o ${{ matrix.output_name }} main.cpp
 
-    # Загружаем собранный файл во временное хранилище GitHub Artifacts
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -54,7 +57,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: build # Ждем, пока завершатся все сборки из матрицы выше
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -63,7 +66,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Скачиваем абсолютно все файлы, собранные на этапе 'build'
     - name: Download All Artifacts
       uses: actions/download-artifact@v4
       with:
@@ -72,7 +74,7 @@ jobs:
     - name: Generate Release Tag
       id: tag
       run: |
-        TAG_NAME="v$(date +'%Y.%m.%d-%H%M')"
+        TAG_NAME="v$(date +'%Y.%m.%d-%H.%M')"
         echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
     - name: Create GitHub Release
@@ -80,13 +82,10 @@ jobs:
       with:
         tag_name: ${{ steps.tag.outputs.tag_name }}
         name: Release ${{ steps.tag.outputs.tag_name }}
-        body: |
-          Автоматический релиз со сборками под Windows и Linux (x86 / x64).
         draft: false
         prerelease: false
-        # Сюда попадут все скомпилированные файлы, которые мы скачали на предыдущем шаге
         files: |
-          my_program_linux_x64
-          my_program_linux_x86
-          my_program_windows_x64.exe
-          my_program_windows_x86.exe
+          team-game-arcade.linux-x64.elf
+          team-game-arcade.linux-x86.elf
+          team-game-arcade.windows-x64.exe
+          team-game-arcade.windows-x86.exe
